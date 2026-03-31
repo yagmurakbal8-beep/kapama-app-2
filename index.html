@@ -2,12 +2,31 @@
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
-<title>Kapama App</title>
+<title>KAPAMA • Üretim Takip</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
 <style>
-body { background:#0b1220; color:white; font-family:Arial; padding:20px }
-table { width:100%; margin-top:20px; border-collapse:collapse }
-td,th { padding:8px; border-bottom:1px solid #333 }
+body {
+  background:#0b1220;
+  color:white;
+  font-family:Arial;
+  padding:20px;
+}
+h2 { margin-bottom:20px }
+input {
+  padding:6px;
+  margin-right:10px;
+}
+table {
+  width:100%;
+  margin-top:20px;
+  border-collapse:collapse;
+}
+th,td {
+  padding:8px;
+  border-bottom:1px solid #333;
+  text-align:left;
+}
 .red { color:#ff4d4f }
 .green { color:#52c41a }
 </style>
@@ -17,8 +36,8 @@ td,th { padding:8px; border-bottom:1px solid #333 }
 
 <h2>KAPAMA • Üretim Takip</h2>
 
-<input type="file" id="file" />
-<input type="text" id="search" placeholder="Model ara..." />
+<input type="file" id="file">
+<input type="text" id="search" placeholder="Model ara...">
 
 <table>
 <thead>
@@ -38,39 +57,57 @@ let allData = [];
 
 document.getElementById("file").addEventListener("change", (e) => {
   const reader = new FileReader();
+
   reader.onload = (evt) => {
     const wb = XLSX.read(evt.target.result, { type: "binary" });
     const ws = wb.Sheets[wb.SheetNames[0]];
     const json = XLSX.utils.sheet_to_json(ws);
 
     allData = json
-      .filter(r => r["Sipariş Tipi"] == 1 || r["Sipariş Tipi"] == 3)
       .map(r => {
-        let total =
-          (+r["Üretim"] || 0) +
-          (+r["Üretim 1A"] || 0) +
-          (+r["Üretim 2K"] || 0) +
-          (+r["Üretim Fazlası"] || 0);
+        const get = (...keys) => {
+          for (let k of Object.keys(r)) {
+            if (keys.some(x => k.toLowerCase().includes(x))) {
+              return r[k];
+            }
+          }
+          return 0;
+        };
 
-        let ref = r["Tasnif"] ? +r["Tasnif"] : (+r["Kesim"] || 0);
+        let siparisTipi = get("sipariş", "siparis");
+
+        if (siparisTipi != 1 && siparisTipi != 3) return null;
+
+        let total =
+          (+get("üretim") || 0) +
+          (+get("1a") || 0) +
+          (+get("2k") || 0) +
+          (+get("fazla") || 0);
+
+        let tasnif = get("tasnif");
+        let kesim = get("kesim");
+
+        let ref = tasnif ? +tasnif : (+kesim || 0);
 
         return {
-          model: r["Model"],
-          atolye: r["Atölye"],
+          model: get("model"),
+          atolye: get("atölye", "atolye"),
           total,
           ref,
           diff: total - ref
         };
-      });
+      })
+      .filter(Boolean);
 
     render(allData);
   };
+
   reader.readAsBinaryString(e.target.files[0]);
 });
 
 document.getElementById("search").addEventListener("input", (e) => {
   const val = e.target.value.toLowerCase();
-  render(allData.filter(d => d.model?.toLowerCase().includes(val)));
+  render(allData.filter(d => (d.model || "").toLowerCase().includes(val)));
 });
 
 function render(data) {
@@ -80,8 +117,8 @@ function render(data) {
   data.forEach(d => {
     tbody.innerHTML += `
       <tr>
-        <td>${d.model}</td>
-        <td>${d.atolye}</td>
+        <td>${d.model || "-"}</td>
+        <td>${d.atolye || "-"}</td>
         <td>${d.total}</td>
         <td>${d.ref}</td>
         <td class="${d.diff < 0 ? 'red' : 'green'}">${d.diff}</td>
